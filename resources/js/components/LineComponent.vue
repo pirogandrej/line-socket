@@ -42,6 +42,7 @@
 
 <script>
     import io from 'socket.io-client';
+    import axios from 'axios';
     import AmExportCss from 'amcharts3/amcharts/plugins/export/export.css';
     import AmCharts from 'amcharts3/amcharts/amcharts';
     import AmSerial from 'amcharts3/amcharts/serial';
@@ -65,15 +66,20 @@
 
         mounted() {
             this.showChartGraph(this.messages);
-            var obj = this;
+            let obj = this;
+            let indexField;
             socket.on('object:message', function (data) {
-                console.log(data);
+//                console.log(data);
                 obj.messages.forEach(function(item, i) {
                     if(item.object == data.object)
                     {
-                        obj.messages[i].value = data.value;
+                        indexField = i;
+//                        obj.messages[i].value = data.value;
                     }
                 });
+//                console.log('on-message');
+                obj.animeGraph( indexField, data.value );
+
 //                obj.chart.dataProvider = obj.messages;
 //                obj.chart.validateData();
             });
@@ -95,13 +101,54 @@
                     this.buttonTitle = 'Показать график';
                 }
             },
+            graphDrawDelay: function( x, i, timeDelay) {
+                let obj = this;
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        obj.messages[i].value = parseInt(x);
+                        obj.chart.dataProvider = obj.messages;
+                        obj.chart.validateData();
+//                        console.log('resolve-func x = ' + x);
+                        resolve(x);
+                    }, timeDelay);
+                });
+            },
+
+            animeProcess: async function( x, i ) {
+                let j;
+                let result;
+                let newValue;
+                const itemNumber = 15;
+                const timeTotal = 400;
+                let timeItem = Math.round(timeTotal/itemNumber);
+                const x1 = this.messages[i].value;
+                const x2 = x;
+                const d = x2 - x1;
+                const itemHeight = Math.round(d/itemNumber);
+                if (timeItem < 4)
+                {
+                    timeItem = 4;
+                }
+                for( j=1; j<=itemNumber; j++)
+                {
+                    newValue = parseInt(x1) + parseInt(j*itemHeight);
+                    if(((d<0)&&(newValue < x2)) || ((d>0)&&(newValue > x2)))
+                    {
+                        newValue = x2;
+                    }
+                    result = await this.graphDrawDelay(newValue, i, timeItem);
+                }
+                result = await this.graphDrawDelay(x2, i, timeItem);
+                return result;
+            },
+
             addObject: function() {
                 axios.post('messages', {
                     object: this.formData.object,
                     value: this.formData.value
                 })
                 .then(response => {
-                    console.log(response.data);
+//                    console.log(response.data);
                     this.formData.object = '';
                     this.formData.value = '';
                 })
@@ -125,7 +172,7 @@
                         })
                     }
                 });
-                this.animeGraph(this.messages, indexField, valueObjectUpper);
+//                this.animeGraph( indexField, valueObjectUpper );
             },
             pauseBrowser: function(millis) {
                 var date = Date.now();
@@ -134,28 +181,10 @@
                     curDate = Date.now();
                 } while (curDate-date < millis);
             },
-            animeGraph: function(data, index, value){
-                console.log('datadatadatadatadatadatadata');
-                console.log(data);
-                console.log('indexindexindexindexindexindex');
-                console.log(index);
-                console.log('old value');
-                console.log(data[index].value);
-                console.log('new value');
-                console.log(value);
-                var delta = Math.round((parseInt(value) - parseInt(data[index].value))/10);
-                var obj = this;
-                for(var i = 1;i<=10;i++){
-                    obj.messages[index].value = parseInt(this.messages[index].value) + parseInt(delta);
-//                    obj.chart.dataProvider = this.messages;
-//                    obj.chart.validateData();
-                    console.log('changechangechangechangechangechange------------');
-                    console.log(obj.messages[index].value);
-                    obj.pauseBrowser(1000);
-                }
-//                this.messages[index].value = value;
-//                this.chart.dataProvider = this.messages;
-//                this.chart.validateData();
+            animeGraph: function( index, value ){
+                this.animeProcess( value, index ).then(v => {
+//                    console.log('v' + v);
+                });
             },
             showChartGraph: function (data) {
                 this.chart = window.AmCharts.makeChart("chartdiv", {
